@@ -18,83 +18,55 @@ const Chat = () => {
   const user = useSelector((store) => store.user);
   const userId = user?._id;
 
-  // -------------------------------
-  // FETCH CHAT
-  // -------------------------------
+  // ---------------- FETCH CHAT ----------------
   useEffect(() => {
     const fetchChat = async () => {
-      try {
-        const res = await axios.get(
-          BASE_URL + "/chat/" + targetUserId,
-          { withCredentials: true }
-        );
+      const res = await axios.get(
+        BASE_URL + "/chat/" + targetUserId,
+        { withCredentials: true }
+      );
 
-        const msgs = res.data.messages.map((msg) => ({
-          senderId: msg.senderId._id,
-          firstName: msg.senderId.firstName,
-          lastName: msg.senderId.lastName,
-          text: msg.text,
-          time: msg.createdAt,
-          seen: msg.seen,
-        }));
+      const msgs = res.data.messages.map((msg) => ({
+        senderId: msg.senderId._id,
+        firstName: msg.senderId.firstName,
+        text: msg.text,
+        time: msg.createdAt,
+        seen: msg.seen,
+      }));
 
-        setMessages(msgs);
+      setMessages(msgs);
 
-        const otherUserMsg = msgs.find(
-          (m) => m.senderId !== userId
-        );
-
-        if (otherUserMsg) {
-          setTargetUser({
-            firstName: otherUserMsg.firstName,
-            lastName: otherUserMsg.lastName,
-          });
-        }
-      } catch (err) {
-        console.log(err);
-      }
+      const other = msgs.find((m) => m.senderId !== userId);
+      if (other) setTargetUser({ firstName: other.firstName });
     };
 
     fetchChat();
   }, [targetUserId, userId]);
 
-  // -------------------------------
-  // SOCKET
-  // -------------------------------
+  // ---------------- SOCKET ----------------
   useEffect(() => {
     if (!userId) return;
 
     socketRef.current = createSocketConnection();
 
-    socketRef.current.emit("joinChat", {
-      userId,
-      targetUserId,
-    });
+    socketRef.current.emit("joinChat", { userId, targetUserId });
 
     socketRef.current.on("messageReceived", (msg) => {
       setMessages((prev) => [
         ...prev,
-        {
-          ...msg,
-          time: new Date(),
-          seen: false,
-        },
+        { ...msg, time: new Date(), seen: false },
       ]);
     });
 
     return () => socketRef.current.disconnect();
   }, [userId, targetUserId]);
 
-  // -------------------------------
-  // AUTO SCROLL
-  // -------------------------------
+  // ---------------- SCROLL ----------------
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // -------------------------------
-  // SEND MESSAGE
-  // -------------------------------
+  // ---------------- SEND ----------------
   const sendMessage = () => {
     if (!newMessage.trim()) return;
 
@@ -107,9 +79,7 @@ const Chat = () => {
     setNewMessage("");
   };
 
-  // -------------------------------
-  // UI
-  // -------------------------------
+  // ---------------- UI ----------------
   return (
     <div className="flex justify-center px-3 py-6">
       <div className="w-full max-w-4xl h-[72vh] flex flex-col bg-base-300 rounded-2xl shadow-2xl overflow-hidden">
@@ -119,30 +89,31 @@ const Chat = () => {
           <span className="text-2xl">💬</span>
           <div>
             <h2 className="font-semibold text-lg">
-              {targetUser
-                ? `${targetUser.firstName} ${targetUser.lastName || ""}`
-                : "Chat"}
+              {targetUser?.firstName || "Chat"}
             </h2>
-            <p className="text-xs text-base-content/60">Connected</p>
+            <p className="text-xs opacity-60">Connected</p>
           </div>
         </div>
 
         {/* MESSAGES */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
           {messages.map((m, i) => {
             const isMe = m.senderId === userId;
 
             return (
               <div
                 key={i}
-                className={`flex ${isMe ? "justify-end" : "justify-start"}`}
+                className={`flex flex-col ${
+                  isMe ? "items-end" : "items-start"
+                }`}
               >
+                {/* MESSAGE BUBBLE */}
                 <div
                   className={`max-w-[65%] px-4 py-2.5 rounded-2xl text-sm
                     ${
                       isMe
-                        ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-br-none shadow-md"
-                        : "bg-base-100 text-base-content rounded-bl-none shadow"
+                        ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-br-none"
+                        : "bg-base-100 text-base-content rounded-bl-none"
                     }`}
                 >
                   {!isMe && (
@@ -150,22 +121,20 @@ const Chat = () => {
                       {m.firstName}
                     </p>
                   )}
+                  {m.text}
+                </div>
 
-                  <p>{m.text}</p>
-
-                  {/* TIME + TICKS */}
-                  <div className="flex justify-end items-center gap-2 mt-1 text-[10px] opacity-60">
-                    <span>
-                      {new Date(m.time).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-
-                    {isMe && (
-                      <span>{m.seen ? "✓✓" : "✓"}</span>
-                    )}
-                  </div>
+                {/* TIME + SEEN (BELOW BUBBLE) */}
+                <div
+                  className={`mt-1 text-[10px] opacity-60 ${
+                    isMe ? "text-right pr-1" : "text-left pl-1"
+                  }`}
+                >
+                  {new Date(m.time).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  {isMe && m.seen && " · Seen"}
                 </div>
               </div>
             );
@@ -173,27 +142,18 @@ const Chat = () => {
           <div ref={bottomRef} />
         </div>
 
-        {/* INPUT BAR */}
+        {/* INPUT */}
         <div className="px-5 py-4 border-t border-base-content/10 bg-base-200 flex gap-3">
           <input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            className="w-full px-5 py-3 rounded-full bg-base-100 text-base-content
-                       border border-base-content/20 outline-none
-                       focus:border-primary focus:ring-2 focus:ring-primary/40
-                       transition-all duration-200"
+            className="w-full px-5 py-3 rounded-full bg-base-100 border outline-none"
             placeholder="Type a message…"
           />
-
           <button
             onClick={sendMessage}
-            className="px-7 py-3 rounded-full font-semibold text-white
-                       bg-gradient-to-r from-indigo-500 to-purple-600
-                       hover:from-indigo-600 hover:to-purple-700
-                       active:scale-95 hover:scale-105
-                       shadow-lg shadow-purple-500/30
-                       transition-all duration-200"
+            className="px-7 py-3 rounded-full text-white bg-gradient-to-r from-indigo-500 to-purple-600"
           >
             Send
           </button>
