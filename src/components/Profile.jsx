@@ -11,14 +11,14 @@ const Profile = () => {
 
   const fetchProfile = async () => {
     try {
-      const res = await axios.get(BASE_URL + "/profile/view", {
+      const res = await axios.get(`${BASE_URL}/profile/view`, {
         withCredentials: true,
       });
 
-      // ✅ FIX: backend sends user directly
+      // backend sends user directly
       dispatch(addUser(res.data));
     } catch (err) {
-      console.log(err);
+      console.error("Fetch profile error:", err);
     }
   };
 
@@ -28,16 +28,18 @@ const Profile = () => {
     }
   }, [user]);
 
+  // LOADING STATE
   if (!user) {
     return (
-      <div className="flex justify-center items-center min-h-[60vh]">
-        <span className="loading loading-spinner loading-lg text-primary"></span>
+      <div className="flex justify-center items-center min-h-[70vh]">
+        <span className="loading loading-spinner loading-lg text-purple-500"></span>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="min-h-screen bg-base-200">
+      {/* Profile Section */}
       <EditProfile user={user} />
     </div>
   );
