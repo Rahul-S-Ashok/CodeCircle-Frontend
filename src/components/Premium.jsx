@@ -15,7 +15,7 @@ const Premium = () => {
       const res = await axios.get(`${BASE_URL}/payment/premium/verify`, {
         withCredentials: true,
       });
-      if (res.data.isPremium) setIsUserPremium(true);
+      setIsUserPremium(!!res.data.isPremium);
     } catch (err) {
       console.error(err);
     } finally {
@@ -24,7 +24,6 @@ const Premium = () => {
   };
 
   const handleBuyClick = async (type) => {
-    // 🔴 HARD GUARD
     if (!window.Razorpay) {
       alert("Razorpay SDK not loaded");
       return;
@@ -37,7 +36,7 @@ const Premium = () => {
         { withCredentials: true }
       );
 
-      const { orderId, keyId, amount, currency, notes } = res.data;
+      const { orderId, keyId, amount, currency } = res.data;
 
       const options = {
         key: keyId,
@@ -46,23 +45,17 @@ const Premium = () => {
         name: "DevTinder",
         description: "Premium Membership",
         order_id: orderId,
-        prefill: {
-          name: `${notes.firstName} ${notes.lastName}`,
-          email: notes.emailId,
-        },
         handler: () => {
           alert("Payment successful 🎉");
           verifyPremiumUser();
         },
-        theme: {
-          color: "#9333ea",
-        },
+        theme: { color: "#9333ea" },
       };
 
       const rzp = new window.Razorpay(options);
       rzp.open();
     } catch (err) {
-      console.error("Payment error:", err);
+      console.error(err);
       alert("Payment failed");
     }
   };
@@ -86,7 +79,6 @@ const Premium = () => {
       </h1>
 
       <div className="flex flex-col md:flex-row gap-8 justify-center">
-        {/* SILVER */}
         <div className="bg-base-300 p-8 rounded-xl w-full md:w-[420px]">
           <h2 className="text-2xl font-bold text-purple-400 text-center mb-6">
             Silver Membership
@@ -108,7 +100,6 @@ const Premium = () => {
           </button>
         </div>
 
-        {/* GOLD */}
         <div className="bg-base-300 p-8 rounded-xl w-full md:w-[420px]">
           <h2 className="text-2xl font-bold text-orange-400 text-center mb-6">
             Gold Membership
