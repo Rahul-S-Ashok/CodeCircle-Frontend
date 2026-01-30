@@ -3,22 +3,21 @@ import { BASE_URL } from "../utils/constants";
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { addConnection, removeConnection } from "../utils/connectionSlice";
+import { useNavigate } from "react-router-dom";
 
 const Connections = () => {
   const connections = useSelector((store) => store.connection);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const fetchConnections = async () => {
     try {
-      dispatch(removeConnection()); // set to null → loading
+      dispatch(removeConnection()); // loading
 
       const res = await axios.get(BASE_URL + "/user/connections", {
         withCredentials: true,
       });
 
-      console.log("CONNECTIONS API RESPONSE 👉", res.data);
-
-      // 🔥 SAFELY extract array from API
       const connectionList =
         res.data?.data ||
         res.data?.connections ||
@@ -28,7 +27,7 @@ const Connections = () => {
       dispatch(addConnection(connectionList));
     } catch (error) {
       console.log("CONNECTION ERROR 👉", error);
-      dispatch(addConnection([])); // avoid blank screen
+      dispatch(addConnection([]));
     }
   };
 
@@ -38,7 +37,7 @@ const Connections = () => {
     }
   }, [connections]);
 
-  // 🔄 Loading
+  // Loading
   if (connections === null) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -47,7 +46,7 @@ const Connections = () => {
     );
   }
 
-  // 🚫 Empty
+  // Empty
   if (!Array.isArray(connections) || connections.length === 0) {
     return (
       <h1 className="flex justify-center text-2xl my-10 text-green-300">
@@ -63,27 +62,46 @@ const Connections = () => {
       </h1>
 
       {connections.map((connection) => {
-        const { _id, firstName, lastName, photoUrl, age, gender, about } =
-          connection;
+        const {
+          _id,
+          firstName,
+          lastName,
+          photoUrl,
+          age,
+          gender,
+          about,
+        } = connection;
 
         return (
           <div
             key={_id}
-            className="flex items-center m-2 p-2 rounded-lg bg-base-300 w-1/2 mx-auto"
+            className="flex flex-col sm:flex-row sm:items-center sm:justify-between m-2 p-4 rounded-lg bg-base-300 w-full sm:w-3/4 lg:w-1/2 mx-auto"
           >
-            <img
-              alt="photo"
-              className="w-14 h-14 rounded-full object-contain"
-              src={photoUrl}
-            />
+            {/* LEFT */}
+            <div className="flex items-center">
+              <img
+                alt="photo"
+                className="w-14 h-14 rounded-full object-cover"
+                src={photoUrl}
+              />
 
-            <div className="text-left m-4 p-4">
-              <h2 className="font-bold text-xl">
-                {firstName} {lastName}
-              </h2>
-              {age && gender && <p>{age} {gender}</p>}
-              <p>{about}</p>
+              <div className="text-left ml-4">
+                <h2 className="font-bold text-xl">
+                  {firstName} {lastName}
+                </h2>
+
+                {age && gender && <p>{age} {gender}</p>}
+                <p>{about}</p>
+              </div>
             </div>
+
+            {/* RIGHT */}
+            <button
+              onClick={() => navigate(`/chat/${_id}`)}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg mt-3 sm:mt-0"
+            >
+              Chat
+            </button>
           </div>
         );
       })}
