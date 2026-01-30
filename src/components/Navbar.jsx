@@ -2,12 +2,29 @@ import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { BASE_URL } from "../utils/constants";
-import { removeUser } from "../utils/userSlice";
+import { removeUser, addUser } from "../utils/userSlice";
+import { useEffect } from "react";
 
 const Navbar = () => {
   const user = useSelector((store) => store.user);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  // 🔥 ONLY NEW PART (to refresh premium status)
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await axios.get(`${BASE_URL}/profile/view`, {
+          withCredentials: true,
+        });
+        dispatch(addUser(res.data));
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -31,7 +48,6 @@ const Navbar = () => {
       {/* RIGHT */}
       {user && (
         <div className="flex items-center gap-2 md:gap-4">
-          {/* Hide welcome text on mobile */}
           <p className="hidden md:block text-sm md:text-base">
             Welcome, {user.firstName}
           </p>
@@ -49,12 +65,12 @@ const Navbar = () => {
 
             <ul
               tabIndex={0}
-              className="menu menu-sm dropdown-content bg-base-100 
-                         rounded-box z-[50] mt-3 w-52 p-2 shadow"
+              className="menu menu-sm dropdown-content bg-base-100
+                         rounded-box z-[50] mt-3 w-56 p-2 shadow-lg"
             >
               <li>
-                <Link to="/profile" className="justify-between">
-                  Profile <span className="badge">New</span>
+                <Link to="/profile">
+                  Profile <span className="badge badge-info">New</span>
                 </Link>
               </li>
 
@@ -70,18 +86,41 @@ const Navbar = () => {
                 </Link>
               </li>
 
-              <li>
-                <Link
-                     to="/premium"
-                     className="flex items-center justify-between gap-2 px-3 py-2 rounded-md 
-                     bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold hover:from-purple-700 hover:to-pink-700 transition shadow-md w-full">
-                    <span>Premium</span>
+              {/* 🔥 PREMIUM LOGIC (UNCHANGED) */}
+              {!user.isPremium ? (
+                <li>
+                  <Link
+                    to="/premium"
+                    className="flex justify-between items-center
+                    bg-gradient-to-r from-purple-600 to-pink-600
+                    text-white font-semibold rounded-lg px-3 py-2"
+                  >
+                    Upgrade to Premium
+                    <span className="badge bg-white text-purple-600">⭐</span>
+                  </Link>
+                </li>
+              ) : (
+                <li>
+                  <span
+                    className="flex justify-between items-center
+                    bg-green-600 text-white font-semibold
+                    rounded-lg px-3 py-2 cursor-default"
+                  >
+                    Premium Member
+                    <span>⭐</span>
+                  </span>
+                </li>
+              )}
 
-                   <span className="badge bg-white text-purple-600 font-bold">⭐</span>
-                </Link>
-              </li>
+              <div className="divider my-1"></div>
+
               <li>
-                <button onClick={handleLogout}>Logout</button>
+                <button
+                  onClick={handleLogout}
+                  className="text-red-500 font-semibold hover:bg-red-100"
+                >
+                  Logout
+                </button>
               </li>
             </ul>
           </div>
