@@ -31,16 +31,21 @@ const Profile = () => {
   // LOADING STATE
   if (!user) {
     return (
-      <div className="flex justify-center items-center min-h-[70vh]">
+      <div className="flex flex-col justify-center items-center min-h-[70vh] gap-4">
         <span className="loading loading-spinner loading-lg text-purple-500"></span>
+        <p className="text-sm text-base-content/60 animate-pulse">
+          Loading your profile…
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-base-200">
+    <div className="min-h-screen bg-gradient-to-b from-base-200 to-base-300/40">
       {/* Profile Section */}
-      <EditProfile user={user} />
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <EditProfile user={user} />
+      </div>
     </div>
   );
 };

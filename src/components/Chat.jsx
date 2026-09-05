@@ -18,34 +18,52 @@ const Chat = () => {
   const user = useSelector((store) => store.user);
   const userId = user?._id;
 
-  // ---------------- FETCH CHAT ----------------
+  // ---------------- FETCH TARGET USER (FIXED) ----------------
   useEffect(() => {
-    const fetchChat = async () => {
-      const res = await axios.get(
-        BASE_URL + "/chat/" + targetUserId,
-        { withCredentials: true }
-      );
-
-      const msgs = res.data.messages.map((msg) => ({
-        senderId: msg.senderId._id,
-        firstName: msg.senderId.firstName,
-        text: msg.text,
-        time: msg.createdAt,
-        seen: msg.seen,
-      }));
-
-      setMessages(msgs);
-
-      const other = msgs.find((m) => m.senderId !== userId);
-      if (other) setTargetUser({ firstName: other.firstName });
+    const fetchTargetUser = async () => {
+      try {
+        const res = await axios.get(
+          BASE_URL + "/user/" + targetUserId,
+          { withCredentials: true }
+        );
+        setTargetUser(res.data);
+      } catch (err) {
+        console.error("Failed to fetch target user", err);
+      }
     };
 
-    fetchChat();
-  }, [targetUserId, userId]);
+    if (targetUserId) fetchTargetUser();
+  }, [targetUserId]);
+
+  // ---------------- FETCH CHAT MESSAGES ----------------
+  useEffect(() => {
+    const fetchChat = async () => {
+      try {
+        const res = await axios.get(
+          BASE_URL + "/chat/" + targetUserId,
+          { withCredentials: true }
+        );
+
+        const msgs = res.data.messages.map((msg) => ({
+          senderId: msg.senderId._id,
+          firstName: msg.senderId.firstName,
+          text: msg.text,
+          time: msg.createdAt,
+          seen: msg.seen,
+        }));
+
+        setMessages(msgs);
+      } catch (err) {
+        console.error("Failed to fetch chat", err);
+      }
+    };
+
+    if (targetUserId) fetchChat();
+  }, [targetUserId]);
 
   // ---------------- SOCKET ----------------
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !targetUserId) return;
 
     socketRef.current = createSocketConnection();
 
@@ -54,19 +72,25 @@ const Chat = () => {
     socketRef.current.on("messageReceived", (msg) => {
       setMessages((prev) => [
         ...prev,
-        { ...msg, time: new Date(), seen: false },
+        {
+          senderId: msg.senderId,
+          firstName: msg.firstName,
+          text: msg.text,
+          time: new Date(),
+          seen: false,
+        },
       ]);
     });
 
     return () => socketRef.current.disconnect();
   }, [userId, targetUserId]);
 
-  // ---------------- SCROLL ----------------
+  // ---------------- AUTO SCROLL ----------------
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ---------------- SEND ----------------
+  // ---------------- SEND MESSAGE ----------------
   const sendMessage = () => {
     if (!newMessage.trim()) return;
 
@@ -107,7 +131,6 @@ const Chat = () => {
                   isMe ? "items-end" : "items-start"
                 }`}
               >
-                {/* MESSAGE BUBBLE */}
                 <div
                   className={`max-w-[65%] px-4 py-2.5 rounded-2xl text-sm
                     ${
@@ -124,7 +147,6 @@ const Chat = () => {
                   {m.text}
                 </div>
 
-                {/* TIME + SEEN (BELOW BUBBLE) */}
                 <div
                   className={`mt-1 text-[10px] opacity-60 ${
                     isMe ? "text-right pr-1" : "text-left pl-1"
