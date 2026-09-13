@@ -1,45 +1,102 @@
-import Navbar from "./Navbar";
-import { Outlet, useNavigate } from "react-router-dom";
-import Footer from "./Footer";
-import { BASE_URL } from "../utils/constants";
 import axios from "axios";
+import { useEffect, useState } from "react";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { addUser } from "../utils/userSlice";
-import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
-const Body = () => {
+import { BASE_URL } from "../utils/constants";
+import { addUser, removeUser } from "../utils/userSlice";
+
+export default function Body() {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const userData = useSelector((store) => store.user);
+  const location = useLocation();
 
-  const fetchUser = async () => {
-    if (userData?._id) return;
+  const user = useSelector((store) => store.user);
 
-    try {
-      const res = await axios.get(BASE_URL + "/profile/view", {
-        withCredentials: true,
-      });
-      dispatch(addUser(res.data));
-    } catch (err) {
-      if (err.response?.status === 401) {
-        navigate("/login");
-      }
-    }
-  };
+  const [loading, setLoading] = useState(!user);
 
   useEffect(() => {
+    if (user) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchUser = async () => {
+      try {
+        const res = await axios.get(`${BASE_URL}/profile/view`, {
+          withCredentials: true,
+        });
+
+        if (cancelled) return;
+
+        const loggedInUser = res.data?.data;
+
+        if (loggedInUser) {
+          dispatch(addUser(loggedInUser));
+        } else {
+          dispatch(removeUser());
+        }
+      } catch (error) {
+        if (cancelled) return;
+
+        dispatch(removeUser());
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchUser();
-  }, []);
 
-  return (
-    <div className="min-h-screen flex flex-col bg-base-200">
-      <Navbar />
-      <main className="flex-1 pb-20">
-        <Outlet />
-      </main>
-      <Footer />
-    </div>
-  );
-};
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, user]);
 
-export default Body;
+  // Wait until authentication check is finished
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-7 w-7 animate-spin text-cyan-500" />
+
+          <p className="text-sm text-slate-500">Loading CodeCircle...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // User is NOT logged in
+  if (!user) {
+    if (location.pathname !== "/" && location.pathname !== "/login") {
+      return <Navigate to="/login" replace />;
+    }
+
+    return <Outlet />;
+  }
+
+  // Logged-in user trying to access login
+  if (location.pathname === "/login" || location.pathname === "/") {
+    return (
+      <Navigate
+        to={user.profileComplete ? "/discover" : "/onboarding"}
+        replace
+      />
+    );
+  }
+
+  // User hasn't completed onboarding
+  if (!user.profileComplete && location.pathname !== "/onboarding") {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  // User already completed onboarding
+  if (user.profileComplete && location.pathname === "/onboarding") {
+    return <Navigate to="/discover" replace />;
+  }
+
+  return <Outlet />;
+}

@@ -1,41 +1,93 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@plugin "daisyui";
 
+:root {
+  color-scheme: light;
+}
 
 * {
-  font-family: 'Poppins', sans-serif;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  background: #f7f9fc;
+  color: #172033;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+.grid-fade {
+  background-image:
+    linear-gradient(rgba(0, 180, 220, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 100, 220, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
 
 @keyframes swipeRight {
-  0% {
-    transform: translateX(0) rotate(0deg);
-    opacity: 1;
-  }
-
-  100% {
-    transform: translateX(500px) rotate(20deg);
+  to {
+    transform: translateX(420px) rotate(14deg);
     opacity: 0;
   }
 }
 
 @keyframes swipeLeft {
-  0% {
-    transform: translateX(0) rotate(0deg);
-    opacity: 1;
-  }
-
-  100% {
-    transform: translateX(-500px) rotate(-20deg);
+  to {
+    transform: translateX(-420px) rotate(-14deg);
     opacity: 0;
   }
 }
 
 .animate-like {
-  animation: swipeRight 0.35s forwards;
+  animation: swipeRight 0.32s forwards;
 }
 
 .animate-dislike {
-  animation: swipeLeft 0.35s forwards;
+  animation: swipeLeft 0.32s forwards;
+}
+
+@keyframes pulseLogo {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.logo-pulse {
+  animation: pulseLogo 1.4s ease-in-out infinite;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #e9edf3 25%,
+    #f5f7fa 50%,
+    #e9edf3 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
 }

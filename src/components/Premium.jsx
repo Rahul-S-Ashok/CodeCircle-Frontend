@@ -1,234 +1,407 @@
-import axios from "axios";
-import { BASE_URL } from "../utils/constants";
 import { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { addUser } from "../utils/userSlice";
+import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Check, Crown, Loader2, Sparkles, Zap } from "lucide-react";
 
-const Premium = () => {
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const user = useSelector((store) => store.user);
+import { BASE_URL } from "../utils/constants";
 
-  const [isUserPremium, setIsUserPremium] = useState(false);
+export default function Premium() {
+  const [selectedPlan, setSelectedPlan] = useState("gold");
+  const [premium, setPremium] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+  const [error, setError] = useState("");
+
+  const navigate = useNavigate();
 
   useEffect(() => {
-    verifyPremiumUser();
+    verifyPremium();
   }, []);
 
-  const verifyPremiumUser = async () => {
+  const verifyPremium = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/payment/premium/verify`, {
         withCredentials: true,
       });
 
-      setIsUserPremium(res.data.isPremium);
-      dispatch(addUser(res.data));
+      setPremium(Boolean(res.data?.data?.isPremium));
     } catch (err) {
-      console.error(err);
+      console.error("Premium verification failed:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleBuyClick = async (type) => {
-    if (!window.Razorpay) {
-      alert("Razorpay SDK not loaded");
-      return;
-    }
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+
+      const script = document.createElement("script");
+
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+
+      script.onload = () => resolve(true);
+
+      script.onerror = () => resolve(false);
+
+      document.body.appendChild(script);
+    });
+  };
+
+  const handlePayment = async () => {
+    if (paying) return;
+
+    setPaying(true);
+    setError("");
 
     try {
+      // Load Razorpay checkout
+      const loaded = await loadRazorpay();
+
+      if (!loaded) {
+        throw new Error(
+          "Unable to load Razorpay. Check your internet connection.",
+        );
+      }
+
+      // Create Razorpay order
       const res = await axios.post(
         `${BASE_URL}/payment/create`,
-        { membershipType: type },
-        { withCredentials: true }
+        {
+          membershipType: selectedPlan,
+        },
+        {
+          withCredentials: true,
+        },
       );
 
-      const { orderId, keyId, amount, currency } = res.data;
+      const order = res.data?.data;
+
+      if (!order?.orderId || !order?.keyId) {
+        throw new Error("Invalid payment information received from server.");
+      }
 
       const options = {
-        key: keyId,
-        amount,
-        currency,
-        name: "DevTinder",
-        description: "Premium Membership",
-        order_id: orderId,
+        key: order.keyId,
+
+        amount: order.amount,
+
+        currency: order.currency || "INR",
+
+        name: "CodeCircle",
+
+        description:
+          selectedPlan === "gold" ? "Gold Membership" : "Silver Membership",
+
+        order_id: order.orderId,
 
         handler: async function (response) {
-      try {
-          // Update premium status in backend immediately
-          await axios.post(
-            `${BASE_URL}/payment/verify`,
-            {
-              membershipType: type,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_signature: response.razorpay_signature,
-            },
-            {
-              withCredentials: true,
-            }
-          );
+          try {
+            await axios.post(
+              `${BASE_URL}/payment/verify`,
+              {
+                membershipType: selectedPlan,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+              },
+              {
+                withCredentials: true,
+              },
+            );
 
-          // Fetch updated user
-          await verifyPremiumUser();
+            setPremium(true);
 
-          alert("🎉 Premium Activated Successfully!");
-        } catch (err) {
-          console.error(err);
-          alert("Something went wrong while activating Premium.");
-        }
-      },
+            alert("Payment successful! Welcome to CodeCircle Premium.");
+
+            navigate("/discover", {
+              replace: true,
+            });
+          } catch (err) {
+            console.error("Payment verification failed:", err);
+
+            setError(
+              err.response?.data?.message ||
+                "Payment completed but verification failed.",
+            );
+          } finally {
+            setPaying(false);
+          }
+        },
+
+        modal: {
+          ondismiss: () => {
+            setPaying(false);
+          },
+        },
 
         theme: {
-          color: "#9333ea",
+          color: "#22d3ee",
         },
       };
 
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+      const razorpay = new window.Razorpay(options);
+
+      razorpay.on("payment.failed", (response) => {
+        console.error("Razorpay payment failed:", response?.error);
+
+        setError(
+          response?.error?.description || "Payment failed. Please try again.",
+        );
+
+        setPaying(false);
+      });
+
+      razorpay.open();
     } catch (err) {
-      console.error(err);
-      alert("Payment failed");
+      console.error("Payment error:", err);
+
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Unable to start payment.",
+      );
+
+      setPaying(false);
     }
   };
 
+  // LOADING
+
   if (loading) {
     return (
-      <div className="text-center mt-20 text-xl font-semibold">
-        Loading...
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
+          <Loader2 className="h-5 w-5 animate-spin text-cyan-600" />
+          Checking membership...
+        </div>
       </div>
     );
   }
 
-  if (isUserPremium) {
+  // ALREADY PREMIUM
+
+  if (premium) {
     return (
-      <div className="min-h-[80vh] flex justify-center items-center bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#111827]">
-        <div className="bg-base-300 rounded-3xl border border-purple-500/30 shadow-2xl shadow-purple-500/20 p-10 w-[560px] text-center animate-fade-in">
-          <div className="text-7xl animate-bounce">👑</div>
-          <div className="badge badge-warning badge-outline badge-lg mt-3">
-            PREMIUM MEMBER
+      <div className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center">
+        <div className="w-full rounded-[2rem] border border-amber-200 bg-white p-8 text-center shadow-xl shadow-slate-200/60">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-amber-50">
+            <Crown className="h-9 w-9 text-amber-500" />
           </div>
 
-          <h1 className="text-5xl font-extrabold bg-gradient-to-r from-yellow-400 via-orange-400 to-pink-500 bg-clip-text text-transparent mt-4">
-            Welcome to Premium
+          <h1 className="mt-6 text-3xl font-black text-slate-900">
+            You're already Premium
           </h1>
 
-          <p className="mt-4 text-lg">
-            Your membership has been activated successfully.
+          <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-600">
+            You already have access to all CodeCircle Premium features.
           </p>
 
-          <div className="divider before:bg-purple-500 after:bg-purple-500"></div>
-
-          <div className="text-left space-y-4">
-
-            <div className="flex justify-between">
-              <span>Status</span>
-              <span className="text-green-400 font-semibold">
-                Active ✅
-              </span>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Membership</span>
-              <span className="badge badge-warning badge-lg uppercase">
-                {user?.membershipType}
-            </span>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Blue Tick</span>
-              <span className="text-blue-400 font-semibold">
-                  ✔ Enabled
-              </span>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Chat</span>
-              <span className="text-success">
-                💬 Unlimited
-            </span>
-            </div>
-
-            <div className="flex justify-between">
-              <span>Requests</span>
-              <span>
-                {user?.membershipType === "gold"
-                  ? "Unlimited"
-                  : "100/day"}
-              </span>
-            </div>
-
-          </div>
-
           <button
-            onClick={() => navigate("/")}
-            className="w-full mt-8 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold hover:scale-105 transition-all duration-300"
+            onClick={() => navigate("/discover")}
+            className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 px-6 py-3 text-sm font-black text-white shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02]"
           >
-            Explore Feed
+            Back to Discover
+            <ArrowLeft className="h-4 w-4 rotate-180" />
           </button>
-
         </div>
       </div>
     );
   }
 
   return (
-    <div className="m-6 md:m-10">
-      <h1 className="text-4xl font-bold text-center mb-12">
-        Premium Membership
-      </h1>
+    <div className="mx-auto min-h-full max-w-5xl pb-10">
+      {/* BACK BUTTON */}
 
-      <div className="flex flex-col md:flex-row gap-8 justify-center">
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="mb-6 flex items-center gap-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back
+      </button>
 
-        {/* Silver Card */}
+      {/* HEADER */}
 
-        <div className="bg-base-300 p-8 rounded-xl w-full md:w-[420px] shadow-xl">
-          <h2 className="text-2xl font-bold text-purple-400 text-center mb-6">
-            Silver Membership
-          </h2>
-
-          <ul className="space-y-3">
-            <li>✔ Chat with other people</li>
-            <li>✔ 100 requests/day</li>
-            <li>✔ Blue Tick</li>
-            <li>✔ Valid for 3 months</li>
-          </ul>
-
-          <button
-            onClick={() => handleBuyClick("silver")}
-            className="mt-8 w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-purple-500 to-pink-500 hover:scale-105 transition"
-          >
-            Buy Silver
-          </button>
+      <div className="text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-violet-100">
+          <Crown className="h-7 w-7 text-amber-500" />
         </div>
 
-        {/* Gold Card */}
+        <p className="mt-5 text-xs font-bold uppercase tracking-[0.25em] text-amber-500">
+          CodeCircle Premium
+        </p>
 
-        <div className="bg-base-300 p-8 rounded-xl w-full md:w-[420px] shadow-xl">
-          <h2 className="text-2xl font-bold text-orange-400 text-center mb-6">
-            Gold Membership
-          </h2>
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900 md:text-4xl">
+          Unlock more connections.
+        </h1>
 
-          <ul className="space-y-3">
-            <li>✔ Chat with other people</li>
-            <li>✔ Unlimited requests</li>
-            <li>✔ Blue Tick</li>
-            <li>✔ Valid for 6 months</li>
-          </ul>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600">
+          Get more daily interests and unlock the full CodeCircle networking
+          experience.
+        </p>
+      </div>
 
-          <button
-            onClick={() => handleBuyClick("gold")}
-            className="mt-8 w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-yellow-500 to-orange-500 hover:scale-105 transition"
-          >
-            Buy Gold
-          </button>
+      {/* ERROR */}
+
+      {error && (
+        <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-600">
+          {error}
         </div>
+      )}
 
+      {/* PLANS */}
+
+      <div className="mx-auto mt-10 grid max-w-3xl gap-5 md:grid-cols-2">
+        <PlanCard
+          type="silver"
+          title="Silver"
+          price="₹300"
+          selected={selectedPlan === "silver"}
+          onSelect={() => setSelectedPlan("silver")}
+          features={[
+            "More daily interests",
+            "Priority discovery",
+            "Premium badge",
+          ]}
+        />
+
+        <PlanCard
+          type="gold"
+          title="Gold"
+          price="₹700"
+          selected={selectedPlan === "gold"}
+          onSelect={() => setSelectedPlan("gold")}
+          popular
+          features={[
+            "Maximum daily interests",
+            "Priority discovery",
+            "Premium badge",
+            "Best value for active networkers",
+          ]}
+        />
+      </div>
+
+      {/* PAYMENT BUTTON */}
+
+      <div className="mx-auto mt-8 max-w-3xl">
+        <button
+          type="button"
+          onClick={handlePayment}
+          disabled={paying}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 to-violet-600 text-sm font-black text-white shadow-xl shadow-cyan-500/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {paying ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Opening secure checkout...
+            </>
+          ) : (
+            <>
+              <Zap className="h-5 w-5" />
+              Pay Now — {selectedPlan === "gold" ? "₹700" : "₹300"}
+            </>
+          )}
+        </button>
+
+        <p className="mt-3 text-center text-xs font-medium text-slate-500">
+          Razorpay Test Mode • No real payment required
+        </p>
       </div>
     </div>
   );
-};
+}
 
-export default Premium;
+function PlanCard({
+  type,
+  title,
+  price,
+  selected,
+  onSelect,
+  features,
+  popular,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`relative overflow-hidden rounded-[2rem] border p-6 text-left transition duration-200 ${
+        selected
+          ? "border-cyan-400 bg-cyan-50 shadow-lg shadow-cyan-500/10"
+          : "border-slate-200 bg-white shadow-sm hover:border-slate-300 hover:shadow-md"
+      }`}
+    >
+      {/* POPULAR */}
+
+      {popular && (
+        <div className="absolute right-5 top-5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[9px] font-black uppercase tracking-wider text-violet-600">
+          Popular
+        </div>
+      )}
+
+      {/* PLAN HEADER */}
+
+      <div className="flex items-center gap-3">
+        <div
+          className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
+            type === "gold" ? "bg-amber-100" : "bg-slate-100"
+          }`}
+        >
+          <Crown
+            className={`h-5 w-5 ${
+              type === "gold" ? "text-amber-500" : "text-slate-500"
+            }`}
+          />
+        </div>
+
+        <div>
+          <p className="text-sm font-bold text-slate-900">{title}</p>
+
+          <p className="text-xs text-slate-500">
+            {type === "gold" ? "For serious networking" : "For getting started"}
+          </p>
+        </div>
+      </div>
+
+      {/* PRICE */}
+
+      <div className="mt-6">
+        <span className="text-4xl font-black text-slate-900">{price}</span>
+
+        <span className="ml-2 text-sm text-slate-500">one time</span>
+      </div>
+
+      {/* FEATURES */}
+
+      <div className="mt-6 space-y-3">
+        {features.map((feature) => (
+          <div key={feature} className="flex items-center gap-3">
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100">
+              <Check className="h-3 w-3 text-emerald-600" />
+            </div>
+
+            <span className="text-sm font-medium text-slate-600">
+              {feature}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* SELECT STATUS */}
+
+      <div
+        className={`mt-6 flex items-center gap-2 text-xs font-semibold ${
+          selected ? "text-cyan-600" : "text-slate-500"
+        }`}
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+
+        {selected ? "Selected" : "Select this plan"}
+      </div>
+    </button>
+  );
+}
