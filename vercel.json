@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://codecircle-backendu.onrender.com/$1"
+    }
+  ]
+}
