@@ -1,0 +1,38 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="codecircle-gradient" x1="12" y1="68" x2="68" y2="12" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06B6D4"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M61 19.5C55.7 14.2 48.4 11 40.5 11C24.2 11 11 24.2 11 40.5C11 56.8 24.2 70 40.5 70C48.4 70 55.7 66.8 61 61.5"
+    stroke="url(#codecircle-gradient)"
+    stroke-width="11"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M34 32L25 40.5L34 49"
+    stroke="#06B6D4"
+    stroke-width="5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M47 32L56 40.5L47 49"
+    stroke="#7C3AED"
+    stroke-width="5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M44 29L37 52"
+    stroke="#1E293B"
+    stroke-width="4"
+    stroke-linecap="round"
+  />
+</svg>
