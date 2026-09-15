@@ -6,5 +6,6 @@ export const createSocketConnection = () => {
   return io(SOCKET_URL, {
     withCredentials: true,
     path: "/socket.io",
+    transports: ["websocket"],
   });
 };
