@@ -70,6 +70,9 @@ export default function Login() {
       }
 
       dispatch(addUser(user));
+      if (res.data?.token) {
+        localStorage.setItem("codecircle_token", res.data.token);
+      }
 
       if (user.profileComplete) {
         navigate("/discover", {
@@ -239,6 +242,9 @@ export default function Login() {
       }
 
       dispatch(addUser(user));
+      if (res.data?.token) {
+        localStorage.setItem("codecircle_token", res.data.token);
+      }
 
       if (user.profileComplete) {
         navigate("/discover", {

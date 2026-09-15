@@ -99,6 +99,7 @@ export default function Sidebar() {
       console.error("Logout error:", err);
     } finally {
       dispatch(removeUser());
+      localStorage.removeItem("codecircle_token");
       setMobileOpen(false);
       navigate("/login", { replace: true });
       setLoggingOut(false);

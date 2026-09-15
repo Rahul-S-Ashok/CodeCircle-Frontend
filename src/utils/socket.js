@@ -7,5 +7,8 @@ export const createSocketConnection = () => {
     withCredentials: true,
     path: "/socket.io",
     transports: ["websocket"],
+    auth: {
+      token: localStorage.getItem("codecircle_token"),
+    },
   });
 };
