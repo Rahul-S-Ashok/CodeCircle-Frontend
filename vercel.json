@@ -1,8 +1,6 @@
 {
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "https://codecircle-backendu.onrender.com/$1"
-    }
+    { "source": "/api/(.*)", "destination": "https://codecircle-backendu.onrender.com/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
