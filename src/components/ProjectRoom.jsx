@@ -32,14 +32,23 @@ export default function ProjectRoom() {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
 
-  // ADD MEMBER STATES
+  // ==========================================
+  // ADD MEMBER
+  // ==========================================
+
   const [showAddMember, setShowAddMember] = useState(false);
-  const [memberUserId, setMemberUserId] = useState("");
+
+  const [memberSearch, setMemberSearch] = useState("");
+
+  const [searchResults, setSearchResults] = useState([]);
+
+  const [searchingMembers, setSearchingMembers] = useState(false);
+
   const [addingMember, setAddingMember] = useState(false);
 
-  // =========================================================
+  // ==========================================
   // FETCH PROJECT + MESSAGES
-  // =========================================================
+  // ==========================================
 
   useEffect(() => {
     const fetchProjectData = async () => {
@@ -74,9 +83,9 @@ export default function ProjectRoom() {
     }
   }, [projectId]);
 
-  // =========================================================
+  // ==========================================
   // SOCKET CONNECTION
-  // =========================================================
+  // ==========================================
 
   useEffect(() => {
     if (!projectId) return;
@@ -124,11 +133,13 @@ export default function ProjectRoom() {
     });
 
     return () => {
-      console.log("🧹 Cleaning project socket");
-
       socket.off("projectMessageReceived");
 
       socket.off("project:error");
+
+      socket.off("connect_error");
+
+      socket.off("disconnect");
 
       socket.disconnect();
 
@@ -136,9 +147,9 @@ export default function ProjectRoom() {
     };
   }, [projectId]);
 
-  // =========================================================
+  // ==========================================
   // SEND MESSAGE
-  // =========================================================
+  // ==========================================
 
   const sendMessage = (event) => {
     event.preventDefault();
@@ -167,17 +178,50 @@ export default function ProjectRoom() {
     setSending(false);
   };
 
-  // =========================================================
+  // ==========================================
+  // SEARCH MEMBERS
+  // ==========================================
+
+  useEffect(() => {
+    if (!showAddMember) return;
+
+    const query = memberSearch.trim();
+
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setSearchingMembers(true);
+
+        const response = await axios.get(`${BASE_URL}/projects/users/search`, {
+          params: {
+            q: query,
+          },
+          withCredentials: true,
+        });
+
+        setSearchResults(response.data?.data || []);
+      } catch (err) {
+        console.error("Member search error:", err);
+
+        setSearchResults([]);
+      } finally {
+        setSearchingMembers(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [memberSearch, showAddMember]);
+
+  // ==========================================
   // ADD MEMBER
-  // =========================================================
+  // ==========================================
 
-  const addMember = async (event) => {
-    event.preventDefault();
-
-    const userId = memberUserId.trim();
-
-    if (!userId) {
-      setError("Please enter a user ID.");
+  const addMember = async (selectedUser) => {
+    if (!selectedUser?._id) {
       return;
     }
 
@@ -188,7 +232,7 @@ export default function ProjectRoom() {
       const response = await axios.post(
         `${BASE_URL}/projects/${projectId}/members`,
         {
-          userId,
+          userId: selectedUser._id,
         },
         {
           withCredentials: true,
@@ -201,7 +245,8 @@ export default function ProjectRoom() {
         setProject(updatedProject);
       }
 
-      setMemberUserId("");
+      setMemberSearch("");
+      setSearchResults([]);
       setShowAddMember(false);
     } catch (err) {
       console.error("Add member error:", err);
@@ -212,9 +257,9 @@ export default function ProjectRoom() {
     }
   };
 
-  // =========================================================
+  // ==========================================
   // REMOVE MEMBER
-  // =========================================================
+  // ==========================================
 
   const removeMember = async (memberId) => {
     if (!window.confirm("Remove this member?")) {
@@ -243,9 +288,9 @@ export default function ProjectRoom() {
     }
   };
 
-  // =========================================================
+  // ==========================================
   // LOADING
-  // =========================================================
+  // ==========================================
 
   if (loading) {
     return (
@@ -259,9 +304,9 @@ export default function ProjectRoom() {
     );
   }
 
-  // =========================================================
+  // ==========================================
   // PROJECT NOT FOUND
-  // =========================================================
+  // ==========================================
 
   if (!project) {
     return (
@@ -281,17 +326,17 @@ export default function ProjectRoom() {
     );
   }
 
-  // =========================================================
+  // ==========================================
   // MEMBERS
-  // =========================================================
+  // ==========================================
 
   const members = [project.ownerId, ...(project.members || [])].filter(Boolean);
 
   const isOwner = String(project.ownerId?._id) === String(user?._id);
 
-  // =========================================================
+  // ==========================================
   // UI
-  // =========================================================
+  // ==========================================
 
   return (
     <div className="mx-auto max-w-6xl pb-10 text-slate-900">
@@ -341,8 +386,6 @@ export default function ProjectRoom() {
         {/* CHAT */}
 
         <div className="flex min-h-[650px] flex-col border-r border-slate-200">
-          {/* CHAT HEADER */}
-
           <div className="border-b border-slate-200 p-5">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600">
@@ -451,7 +494,7 @@ export default function ProjectRoom() {
             </p>
           </div>
 
-          {/* TECHNOLOGIES */}
+          {/* TAGS */}
 
           {project.tags?.length > 0 && (
             <div className="mt-5 flex flex-wrap gap-2">
@@ -472,13 +515,15 @@ export default function ProjectRoom() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900">Members</h3>
 
-              {/* ONLY OWNER CAN SEE PLUS */}
+              {/* OWNER ONLY */}
 
               {isOwner && (
                 <button
                   type="button"
                   onClick={() => {
                     setError("");
+                    setMemberSearch("");
+                    setSearchResults([]);
                     setShowAddMember(true);
                   }}
                   className="rounded-lg p-1.5 text-cyan-600 transition hover:bg-cyan-50"
@@ -488,6 +533,8 @@ export default function ProjectRoom() {
                 </button>
               )}
             </div>
+
+            {/* MEMBER LIST */}
 
             <div className="mt-4 space-y-3">
               {members.map((member) => {
@@ -529,7 +576,7 @@ export default function ProjectRoom() {
                       </div>
                     </div>
 
-                    {/* OWNER CAN REMOVE MEMBERS */}
+                    {/* REMOVE */}
 
                     {isOwner && !memberIsOwner && (
                       <button
@@ -560,9 +607,9 @@ export default function ProjectRoom() {
         </aside>
       </div>
 
-      {/* =====================================================
+      {/* ==========================================
           ADD MEMBER MODAL
-      ===================================================== */}
+          ========================================== */}
 
       {showAddMember && (
         <div
@@ -570,11 +617,13 @@ export default function ProjectRoom() {
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !addingMember) {
               setShowAddMember(false);
+              setMemberSearch("");
+              setSearchResults([]);
             }
           }}
         >
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            {/* MODAL HEADER */}
+            {/* HEADER */}
 
             <div className="flex items-start justify-between">
               <div>
@@ -583,7 +632,7 @@ export default function ProjectRoom() {
                 </h2>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  Enter the CodeCircle user's ID.
+                  Search for a CodeCircle developer.
                 </p>
               </div>
 
@@ -592,7 +641,8 @@ export default function ProjectRoom() {
                 disabled={addingMember}
                 onClick={() => {
                   setShowAddMember(false);
-                  setMemberUserId("");
+                  setMemberSearch("");
+                  setSearchResults([]);
                 }}
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
               >
@@ -600,57 +650,100 @@ export default function ProjectRoom() {
               </button>
             </div>
 
-            {/* FORM */}
+            {/* SEARCH */}
 
-            <form onSubmit={addMember} className="mt-6">
-              <label className="text-xs font-semibold text-slate-700">
-                User ID
-              </label>
-
+            <div className="mt-5">
               <input
                 type="text"
-                value={memberUserId}
-                onChange={(event) => setMemberUserId(event.target.value)}
-                placeholder="Enter user ID..."
-                disabled={addingMember}
+                value={memberSearch}
+                onChange={(event) => setMemberSearch(event.target.value)}
+                placeholder="Search by name..."
                 autoFocus
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:bg-white disabled:opacity-50"
+                disabled={addingMember}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:bg-white"
               />
+            </div>
 
-              {/* BUTTONS */}
+            {/* RESULTS */}
 
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  type="button"
-                  disabled={addingMember}
-                  onClick={() => {
-                    setShowAddMember(false);
-                    setMemberUserId("");
-                  }}
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
+            <div className="mt-3 max-h-64 overflow-y-auto">
+              {/* LOADING */}
 
-                <button
-                  type="submit"
-                  disabled={addingMember || !memberUserId.trim()}
-                  className="flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {addingMember ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <Plus size={16} />
-                      Add Member
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+              {searchingMembers && (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 size={20} className="animate-spin text-cyan-500" />
+                </div>
+              )}
+
+              {/* NO RESULTS */}
+
+              {!searchingMembers &&
+                memberSearch.trim() &&
+                searchResults.length === 0 && (
+                  <p className="py-8 text-center text-sm text-slate-400">
+                    No developers found.
+                  </p>
+                )}
+
+              {/* USERS */}
+
+              {!searchingMembers &&
+                searchResults.map((candidate) => {
+                  const name = `${candidate.firstName || ""} ${
+                    candidate.lastName || ""
+                  }`.trim();
+
+                  const alreadyMember = members.some(
+                    (member) => String(member._id) === String(candidate._id),
+                  );
+
+                  return (
+                    <div
+                      key={candidate._id}
+                      className="flex items-center justify-between gap-3 rounded-xl px-3 py-3 transition hover:bg-slate-50"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-cyan-100 text-sm font-bold text-cyan-700">
+                          {candidate.photoUrl ? (
+                            <img
+                              src={candidate.photoUrl}
+                              alt={name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-800">
+                            {name}
+                          </p>
+
+                          {candidate.headline && (
+                            <p className="truncate text-xs text-slate-500">
+                              {candidate.headline}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={addingMember || alreadyMember}
+                        onClick={() => addMember(candidate)}
+                        className="shrink-0 rounded-lg bg-cyan-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                      >
+                        {alreadyMember
+                          ? "Added"
+                          : addingMember
+                            ? "Adding..."
+                            : "Add"}
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         </div>
       )}
