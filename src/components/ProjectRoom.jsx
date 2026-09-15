@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-
 import { useNavigate, useParams } from "react-router-dom";
-
+import { useSelector } from "react-redux";
 import axios from "axios";
 
 import {
@@ -11,40 +10,41 @@ import {
   Plus,
   MoreVertical,
   Loader2,
+  X,
 } from "lucide-react";
 
 import { BASE_URL } from "../utils/constants";
-
 import { createSocketConnection } from "../utils/socket";
 
 export default function ProjectRoom() {
   const navigate = useNavigate();
-
   const { projectId } = useParams();
+
+  const user = useSelector((state) => state.user);
 
   const socketRef = useRef(null);
 
   const [message, setMessage] = useState("");
-
   const [project, setProject] = useState(null);
-
   const [messages, setMessages] = useState([]);
 
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState("");
-
   const [sending, setSending] = useState(false);
 
-  /* =================================================
-     FETCH PROJECT + MESSAGES
-  ================================================= */
+  // ADD MEMBER STATES
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [memberUserId, setMemberUserId] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+
+  // =========================================================
+  // FETCH PROJECT + MESSAGES
+  // =========================================================
 
   useEffect(() => {
     const fetchProjectData = async () => {
       try {
         setLoading(true);
-
         setError("");
 
         const [projectResponse, messagesResponse] = await Promise.all([
@@ -74,25 +74,16 @@ export default function ProjectRoom() {
     }
   }, [projectId]);
 
-  /* =================================================
-     SOCKET CONNECTION
-  ================================================= */
+  // =========================================================
+  // SOCKET CONNECTION
+  // =========================================================
 
   useEffect(() => {
     if (!projectId) return;
 
-    /*
-      IMPORTANT:
-      Create ONE socket only.
-    */
-
     const socket = createSocketConnection();
 
     socketRef.current = socket;
-
-    /* -----------------------------------------------
-       CONNECT
-    ----------------------------------------------- */
 
     socket.on("connect", () => {
       console.log("🔌 Project socket connected:", socket.id);
@@ -102,16 +93,8 @@ export default function ProjectRoom() {
       });
     });
 
-    /* -----------------------------------------------
-       RECEIVE PROJECT MESSAGE
-    ----------------------------------------------- */
-
     socket.on("projectMessageReceived", (newMessage) => {
       setMessages((previousMessages) => {
-        /*
-              Prevent duplicate messages
-            */
-
         const exists = previousMessages.some(
           (item) => item._id === newMessage._id,
         );
@@ -124,10 +107,6 @@ export default function ProjectRoom() {
       });
     });
 
-    /* -----------------------------------------------
-       PROJECT ERROR
-    ----------------------------------------------- */
-
     socket.on("project:error", (data) => {
       console.error("Project socket error:", data);
 
@@ -136,31 +115,13 @@ export default function ProjectRoom() {
       setSending(false);
     });
 
-    /* -----------------------------------------------
-       SOCKET CONNECT ERROR
-    ----------------------------------------------- */
-
     socket.on("connect_error", (err) => {
       console.error("Socket connection error:", err.message);
     });
 
-    /* -----------------------------------------------
-       DISCONNECT
-    ----------------------------------------------- */
-
     socket.on("disconnect", (reason) => {
       console.log("🔌 Project socket disconnected:", reason);
     });
-
-    /*
-      CLEANUP
-
-      This happens only when:
-      - Leaving ProjectRoom
-      - projectId changes
-
-      THIS PREVENTS MULTIPLE SOCKETS
-    */
 
     return () => {
       console.log("🧹 Cleaning project socket");
@@ -175,9 +136,9 @@ export default function ProjectRoom() {
     };
   }, [projectId]);
 
-  /* =================================================
-     SEND MESSAGE
-  ================================================= */
+  // =========================================================
+  // SEND MESSAGE
+  // =========================================================
 
   const sendMessage = (event) => {
     event.preventDefault();
@@ -206,9 +167,85 @@ export default function ProjectRoom() {
     setSending(false);
   };
 
-  /* =================================================
-     LOADING
-  ================================================= */
+  // =========================================================
+  // ADD MEMBER
+  // =========================================================
+
+  const addMember = async (event) => {
+    event.preventDefault();
+
+    const userId = memberUserId.trim();
+
+    if (!userId) {
+      setError("Please enter a user ID.");
+      return;
+    }
+
+    try {
+      setAddingMember(true);
+      setError("");
+
+      const response = await axios.post(
+        `${BASE_URL}/projects/${projectId}/members`,
+        {
+          userId,
+        },
+        {
+          withCredentials: true,
+        },
+      );
+
+      const updatedProject = response.data?.data;
+
+      if (updatedProject) {
+        setProject(updatedProject);
+      }
+
+      setMemberUserId("");
+      setShowAddMember(false);
+    } catch (err) {
+      console.error("Add member error:", err);
+
+      setError(err.response?.data?.message || "Unable to add member.");
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  // =========================================================
+  // REMOVE MEMBER
+  // =========================================================
+
+  const removeMember = async (memberId) => {
+    if (!window.confirm("Remove this member?")) {
+      return;
+    }
+
+    try {
+      setError("");
+
+      const response = await axios.delete(
+        `${BASE_URL}/projects/${projectId}/members/${memberId}`,
+        {
+          withCredentials: true,
+        },
+      );
+
+      const updatedProject = response.data?.data;
+
+      if (updatedProject) {
+        setProject(updatedProject);
+      }
+    } catch (err) {
+      console.error("Remove member error:", err);
+
+      setError(err.response?.data?.message || "Unable to remove member.");
+    }
+  };
+
+  // =========================================================
+  // LOADING
+  // =========================================================
 
   if (loading) {
     return (
@@ -222,9 +259,9 @@ export default function ProjectRoom() {
     );
   }
 
-  /* =================================================
-     ERROR
-  ================================================= */
+  // =========================================================
+  // PROJECT NOT FOUND
+  // =========================================================
 
   if (!project) {
     return (
@@ -244,17 +281,21 @@ export default function ProjectRoom() {
     );
   }
 
-  /* =================================================
-     MEMBERS
-  ================================================= */
+  // =========================================================
+  // MEMBERS
+  // =========================================================
 
   const members = [project.ownerId, ...(project.members || [])].filter(Boolean);
 
+  const isOwner = String(project.ownerId?._id) === String(user?._id);
+
+  // =========================================================
+  // UI
+  // =========================================================
+
   return (
     <div className="mx-auto max-w-6xl pb-10 text-slate-900">
-      {/* =============================================
-          HEADER
-      ============================================= */}
+      {/* HEADER */}
 
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -274,29 +315,30 @@ export default function ProjectRoom() {
           </div>
         </div>
 
-        <button className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600">
+        <button
+          type="button"
+          className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600"
+        >
           <MoreVertical size={20} />
         </button>
       </div>
 
-      {/* =============================================
-          ERROR
-      ============================================= */}
+      {/* ERROR */}
 
       {error && (
-        <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
-          {error}
+        <div className="mt-5 flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+          <span>{error}</span>
+
+          <button type="button" onClick={() => setError("")}>
+            <X size={16} />
+          </button>
         </div>
       )}
 
-      {/* =============================================
-          WORKSPACE
-      ============================================= */}
+      {/* WORKSPACE */}
 
       <div className="mt-6 grid min-h-[650px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[1fr_280px]">
-        {/* ===========================================
-            CHAT
-        =========================================== */}
+        {/* CHAT */}
 
         <div className="flex min-h-[650px] flex-col border-r border-slate-200">
           {/* CHAT HEADER */}
@@ -391,9 +433,7 @@ export default function ProjectRoom() {
           </form>
         </div>
 
-        {/* ===========================================
-            RIGHT SIDEBAR
-        =========================================== */}
+        {/* SIDEBAR */}
 
         <aside className="bg-slate-50 p-5">
           {/* PROJECT INFO */}
@@ -432,41 +472,74 @@ export default function ProjectRoom() {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900">Members</h3>
 
-              <button className="rounded-lg p-1.5 text-cyan-600 hover:bg-cyan-50">
-                <Plus size={18} />
-              </button>
+              {/* ONLY OWNER CAN SEE PLUS */}
+
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    setShowAddMember(true);
+                  }}
+                  className="rounded-lg p-1.5 text-cyan-600 transition hover:bg-cyan-50"
+                  title="Add member"
+                >
+                  <Plus size={18} />
+                </button>
+              )}
             </div>
 
             <div className="mt-4 space-y-3">
               {members.map((member) => {
-                const name =
-                  `${member.firstName || ""} ${member.lastName || ""}`.trim();
+                const name = `${member.firstName || ""} ${
+                  member.lastName || ""
+                }`.trim();
+
+                const memberIsOwner =
+                  String(member._id) === String(project.ownerId?._id);
 
                 return (
-                  <div key={member._id} className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white text-xs font-bold text-cyan-600 shadow-sm">
-                      {member.photoUrl ? (
-                        <img
-                          src={member.photoUrl}
-                          alt={name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        name.charAt(0).toUpperCase()
-                      )}
-                    </div>
+                  <div
+                    key={member._id}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white text-xs font-bold text-cyan-600 shadow-sm">
+                        {member.photoUrl ? (
+                          <img
+                            src={member.photoUrl}
+                            alt={name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          name.charAt(0).toUpperCase()
+                        )}
+                      </div>
 
-                    <div>
-                      <p className="text-xs font-medium text-slate-700">
-                        {name}
-                      </p>
-
-                      {String(member._id) === String(project.ownerId?._id) && (
-                        <p className="text-[9px] text-cyan-600">
-                          Project owner
+                      <div>
+                        <p className="text-xs font-medium text-slate-700">
+                          {name}
                         </p>
-                      )}
+
+                        {memberIsOwner && (
+                          <p className="text-[9px] text-cyan-600">
+                            Project owner
+                          </p>
+                        )}
+                      </div>
                     </div>
+
+                    {/* OWNER CAN REMOVE MEMBERS */}
+
+                    {isOwner && !memberIsOwner && (
+                      <button
+                        type="button"
+                        onClick={() => removeMember(member._id)}
+                        className="text-[10px] text-rose-500 hover:text-rose-700"
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -486,6 +559,101 @@ export default function ProjectRoom() {
           </div>
         </aside>
       </div>
+
+      {/* =====================================================
+          ADD MEMBER MODAL
+      ===================================================== */}
+
+      {showAddMember && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !addingMember) {
+              setShowAddMember(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            {/* MODAL HEADER */}
+
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  Add Project Member
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Enter the CodeCircle user's ID.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={addingMember}
+                onClick={() => {
+                  setShowAddMember(false);
+                  setMemberUserId("");
+                }}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* FORM */}
+
+            <form onSubmit={addMember} className="mt-6">
+              <label className="text-xs font-semibold text-slate-700">
+                User ID
+              </label>
+
+              <input
+                type="text"
+                value={memberUserId}
+                onChange={(event) => setMemberUserId(event.target.value)}
+                placeholder="Enter user ID..."
+                disabled={addingMember}
+                autoFocus
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:bg-white disabled:opacity-50"
+              />
+
+              {/* BUTTONS */}
+
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={addingMember}
+                  onClick={() => {
+                    setShowAddMember(false);
+                    setMemberUserId("");
+                  }}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={addingMember || !memberUserId.trim()}
+                  className="flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {addingMember ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={16} />
+                      Add Member
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
